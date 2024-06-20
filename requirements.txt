@@ -1,0 +1,4 @@
+memoization
+joblib
+pytest
+requests
