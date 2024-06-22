@@ -4,6 +4,9 @@ import urllib.request
 import json
 from pprint import pprint
 
+from typing import Set
+from pydantic import BaseModel
+
 import pytest
 
 from joblib import Memory
@@ -13,29 +16,15 @@ memory = Memory("./.pokemon_cache", verbose=False)
 # Get a list of Pokemon which match some filter critera.
 #
 
-class Filter:
-    def __init__(self, types: set, height_range: tuple, xp_range: tuple) -> None:
-        """
-        Create the Pokemon filter. 
-         - types is a list of type names
-         - height_range is a pair of heights, inclusive, of desired Pokemon
-         - xp_range is also a pair of XP, inclusive, of desired experience points
-        """
-        assert(isinstance(types, set))
-        assert(isinstance(height_range, tuple))
-        assert(isinstance(xp_range, tuple))
-
-        assert(len(types) > 0)
-        assert(len(height_range) == 2)
-        assert(len(xp_range) == 2)
-
-        assert(isinstance(str, x) for x in types)
-        assert(isinstance(int, x) for x in height_range)
-        assert(isinstance(int, x) for x in xp_range)
-
-        self.types = types
-        self.height_range = height_range
-        self.xp_range = xp_range
+class Filter(BaseModel):
+    """
+    Filter for pokemon attributes.  A passing pokemon must have at least
+    one type in the types list, a height in the height range, and experience
+    points in the XP range.
+    """
+    types: Set[str]
+    height_range: tuple[int, int]
+    xp_range: tuple[int, int]
 
     def height_in_range(self, height: int) -> bool:
         """
@@ -55,7 +44,7 @@ class Filter:
         return xp is not None \
             and xp >= self.xp_range[0] and xp <= self.xp_range[1]
     
-    def type_matches(self, types:set) -> bool:
+    def type_matches(self, types:Set[str]) -> bool:
         """
         Return true if at least one element of types is in the set of types this 
         filter is looking for.
@@ -69,7 +58,7 @@ class Filter:
         
         return False
     
-    def matching_types(self, types: set) -> set:
+    def matching_types(self, types: Set[str]) -> Set[str]:
         """
         A Pokemaon has many types.  Return a set of only the types which this 
         filter matches.
@@ -77,36 +66,36 @@ class Filter:
         return self.types.intersection(types)
 
 def test_Filter_init():
-    f = Filter({"type"}, (1, 2), (3, 4))
+    f = Filter(types={"type"}, height_range=(1, 2), xp_range=(3, 4))
     assert(isinstance(f, Filter))
 
     # Try creations which should raise exceptions
     try:
-        f = Filter({"type"}, ("a", 3), (1, 3))
+        f = Filter(types={"type"}, height_range=("a", 3), xp_range=(1, 3))
         pytest.fail("Failed to detect non-string type in __init__")
     except:
         pass
     
     try:
-        f = Filter({1}, (1, 2), (3, 4))
+        f = Filter(types={1}, height_range=(1, 2), xp_range=(3, 4))
         pytest.fail("Failed to detect non-string type in __init__")
     except:
         pass
 
     try:
-        f = Filter({"type"}, ("a", 3), (1, 3))
+        f = Filter(types={"type"}, height_range=("a", 3), xp_range=(1, 3))
         pytest.fail("Failed to detect non-string height in __init__")
     except:
         pass
 
     try:
-        f = Filter({"type"}, (1, 3), ("a", 3))
+        f = Filter(types={"type"}, height_range=(1, 3), xp_range=("a", 3))
         pytest.fail("Failed to detect non-string XP in __init__")
     except:
         pass
 
     try:
-        f = Filter({"type"}, (1), (1, 3))
+        f = Filter(types={"type"}, height_range=(1), xp_range=(1, 3))
         pytest.fail("Failed to detect only one height in __init__")
     except:
         pass
@@ -118,7 +107,7 @@ def test_Filter_init():
         pass
 
 def test_height_in_range():
-    f = Filter({"test"}, (1, 4), (5, 8))
+    f = Filter(types={"test"}, height_range=(1, 4), xp_range=(5, 8))
     assert f.height_in_range(1)
     assert f.height_in_range(2)
     assert f.height_in_range(4)
@@ -127,7 +116,7 @@ def test_height_in_range():
     assert f.height_in_range(5) == False
 
 def test_xp_in_range():
-    f = Filter({"test"}, (1, 4), (5, 8))
+    f = Filter(types={"test"}, height_range=(1, 4), xp_range=(5, 8))
     assert f.xp_in_range(5)
     assert f.xp_in_range(6)
     assert f.xp_in_range(8)
@@ -136,14 +125,14 @@ def test_xp_in_range():
     assert f.xp_in_range(9) == False
 
 def test_types_match():
-    f = Filter({"type1", "type2"}, (0, 10), (0, 10))
+    f = Filter(types={"type1", "type2"}, height_range=(0, 10), xp_range=(0, 10))
     assert f.type_matches({"type1"})
     assert f.type_matches({"type2"})
     assert f.type_matches({"type1", "not-type"})
     assert f.type_matches({"not-type"}) == False
 
 def test_matching_types():
-    f = Filter({"type1", "type2"}, (0, 10), (0, 10))
+    f = Filter(types={"type1", "type2"}, height_range=(0, 10), xp_range=(0, 10))
     assert f.matching_types({"type1"}) == {"type1"}
     assert f.matching_types({"type2"}) == {"type2"}
     assert f.matching_types({"not-type"}) == set()
@@ -215,4 +204,9 @@ def get_pokemon(filter: Filter) -> dict:
 
     pprint(results)
 
-get_pokemon(Filter({"grass", "poison", "electric"}, (1, 100), (20, 200)))
+if __name__ == "__main__":
+    filter = Filter(types={"grass", "poison", "electric"}, 
+                    height_range=(1, 100), 
+                    xp_range=(20, 200))
+    pprint(filter)
+    get_pokemon(filter=filter)

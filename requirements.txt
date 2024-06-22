@@ -2,3 +2,4 @@ memoization
 joblib
 pytest
 requests
+pydantic
